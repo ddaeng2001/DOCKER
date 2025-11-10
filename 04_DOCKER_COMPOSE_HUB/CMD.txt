@@ -1,0 +1,11 @@
+# TAG
+docker tag bn    ddaeng2001/shl:bn
+docker tag fn     ddaeng2001/shl:fn
+docker tag redis  ddaeng2001/shl:redis
+docker tag db     ddaeng2001/shl:db
+
+# PUSH
+docker push ddaeng2001/shl:bn
+docker push ddaeng2001/shl:fn
+docker push ddaeng2001/shl:redis
+docker push ddaeng2001/shl:db

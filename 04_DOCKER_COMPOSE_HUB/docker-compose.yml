@@ -1,0 +1,100 @@
+version: '3.8'
+
+networks: #network 설정
+  custom-network: #외부환경(windiow)와 연결할 수 있는 네트워크 생성
+    driver: bridge
+    ipam:
+      config:
+        - subnet : 172.30.0.0/24
+          gateway : 172.30.0.1
+
+
+
+
+services: # 서비스 항목
+
+  db:
+    image: ddaeng2001/shl:db # db라는 이름으로 image파일 생성
+    # 이미지를 바로 받아올 예정이라 build 불필요!
+    # build: # docker 파일의 위치
+    #   context: ./DB
+    #   dockerfile: Dockerfile
+    container_name: db-container
+    networks:
+      custom-network: # 위에서 생성했던 custom-network
+        ipv4_address: 172.30.0.10  # ip로 container간 통신 가능
+    healthcheck: # 통신 유무 : 잘 동작하는지 체크함
+      test: [ "CMD", "mysqladmin", "ping", "-h", "127.0.0.1" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    ports: 
+      - "3330:3306" #외부(WINDOWS, DOCKER 바깥영역) : 내부(DOCKER간의 내용 주고 받을 때)
+    environment:
+      MYSQL_ROOT_PASSWORD: Zhfldk11!
+      MYSQL_DATABASE: testdb
+      MYSQL_USER: dbconn
+      MYSQL_PASSWORD: Zhfldk11!
+      MYSQL_ROOT_HOST: '%'  
+    volumes: # DB volume 설정
+      # - ./DB/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - db-data:/var/lib/mysql   # db data : 데이터가 쌓이는 위치
+
+
+  redis:
+    image: ddaeng2001/shl:redis
+    # build:
+    #   context: ./REDIS # dockerfile의 위치는 현재 위치의 REDIS파일
+    container_name: redis-container
+    ports:
+      - "6380:6379" # 외부 : 내부
+    networks:
+      custom-network: 
+        ipv4_address: 172.30.0.20
+
+
+  fn:
+    image: ddaeng2001/shl:fn
+    # build:
+    #   context: ./FN
+    container_name: fn-container
+    ports:
+      - "3000:80"
+    depends_on:
+      bn: # bn의 service_healthy(검수)가 완료된 후 fn를 동작시키겠다!
+        condition: service_healthy
+    networks:
+      custom-network: 
+        ipv4_address: 172.30.0.30
+
+  bn:
+    image: ddaeng2001/shl:bn
+    # build:
+    #   context: ./BN
+    container_name: bn-container
+    ports:
+      - "8090:8090"
+    environment: # 환경 변수를 설정하지 않더라도 properties를 읽기 때문에 설정하지 않아도 ㄱㅊ!
+      SPRING_DATASOURCE_URL: jdbc:mysql://db-container:3306/testdb
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: Zhfldk11!
+      SPRING_REDIS_HOST: redis
+      SERVER_PORT: 8090
+
+    healthcheck: # 통신 유무 : 잘 동작하는지 체크함
+      test: [ "CMD-SHELL", "curl -s http://127.0.0.1:8090/actuator/health" ]
+      # OK 문자열을 탐지해서 가져오는 것
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+    depends_on:
+      db: # db가 동작한 상태에서 bn가 실행됨
+        condition: service_healthy
+
+    networks:
+      custom-network: 
+        ipv4_address: 172.30.0.40
+
+volumes:
+  db-data:
